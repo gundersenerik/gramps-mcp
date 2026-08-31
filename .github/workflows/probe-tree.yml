@@ -1,0 +1,79 @@
+name: Probe live tree
+
+# Writes to a real Gramps Web tree, so it never runs on its own. There is no
+# push, pull_request or schedule trigger here on purpose: a pull request from
+# a fork must not be able to reach these secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Which phase to run"
+        required: true
+        default: all
+        type: choice
+        options:
+          - verify-delete
+          - probe
+          - cleanup
+          - all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: probe-tree
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe (${{ inputs.phase }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # The ledger from an earlier run is what cleanup works from, so pull it
+      # back in before doing anything else.
+      - name: Restore the ledger from the previous run
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: probe-ledger
+          path: .
+
+      - name: Run the probe
+        env:
+          GRAMPS_API_URL: ${{ secrets.GRAMPS_API_URL }}
+          GRAMPS_USERNAME: ${{ secrets.GRAMPS_USERNAME }}
+          GRAMPS_PASSWORD: ${{ secrets.GRAMPS_PASSWORD }}
+          GRAMPS_TREE_ID: ${{ secrets.GRAMPS_TREE_ID }}
+        run: uv run python scripts/probe_tree.py --phase "${{ inputs.phase }}"
+
+      # Always uploaded: if a probe fails part way, the ledger is the only
+      # record of what was created and cleanup needs it.
+      - name: Upload the ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-ledger
+          path: probe-ledger.json
+          if-no-files-found: ignore
+          overwrite: true
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-report
+          path: probe-report.md
+          if-no-files-found: ignore
+          overwrite: true
