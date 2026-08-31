@@ -89,7 +89,7 @@ async def verify_delete(client: GrampsWebAPIClient, tree: str) -> bool:
 
     record("## Phase 1: deletion")
     params = NoteSaveParams(text=f"{MARKER} delete probe", type="Research")
-    handle = await create(client, ApiCalls.POST_NOTE, params, "note", tree)
+    handle = await create(client, ApiCalls.POST_NOTES, params, "note", tree)
     if not handle:
         record("- FAIL: the API returned no handle for the new note")
         return False
@@ -150,10 +150,10 @@ async def probe_children(client: GrampsWebAPIClient, tree: str) -> None:
 
     record("\n## Point 4: child_handles")
     kid_a = await create(
-        client, ApiCalls.POST_PERSON, person_params("BarnA"), "person", tree
+        client, ApiCalls.POST_PEOPLE, person_params("BarnA"), "person", tree
     )
     kid_b = await create(
-        client, ApiCalls.POST_PERSON, person_params("BarnB"), "person", tree
+        client, ApiCalls.POST_PEOPLE, person_params("BarnB"), "person", tree
     )
     if not (kid_a and kid_b):
         record("- INCONCLUSIVE: could not create the two test children")
@@ -191,7 +191,7 @@ async def probe_merge(client: GrampsWebAPIClient, tree: str) -> None:
         {"path": "https://example.invalid/two", "type": "Web Home"},
     ]
     params.attribute_list = [{"type": "Occupation", "value": f"{MARKER}-M"}]
-    handle = await create(client, ApiCalls.POST_PERSON, params, "person", tree)
+    handle = await create(client, ApiCalls.POST_PEOPLE, params, "person", tree)
     if not handle:
         record("- INCONCLUSIVE: could not create the merge test person")
         return
@@ -235,7 +235,7 @@ async def probe_event_lists(client: GrampsWebAPIClient, tree: str) -> None:
     record("\n## Point 5 open question: event citation_list shape")
     src = await create(
         client,
-        ApiCalls.POST_SOURCE,
+        ApiCalls.POST_SOURCES,
         SourceSaveParams(title=f"{MARKER} source"),
         "source",
         tree,
@@ -245,7 +245,7 @@ async def probe_event_lists(client: GrampsWebAPIClient, tree: str) -> None:
         return
     cit = await create(
         client,
-        ApiCalls.POST_CITATION,
+        ApiCalls.POST_CITATIONS,
         CitationData(source_handle=src),
         "citation",
         tree,
@@ -286,7 +286,7 @@ async def probe_confidence(client: GrampsWebAPIClient, tree: str) -> None:
     record("\n## Point 6: citation confidence")
     src = await create(
         client,
-        ApiCalls.POST_SOURCE,
+        ApiCalls.POST_SOURCES,
         SourceSaveParams(title=f"{MARKER} confidence source"),
         "source",
         tree,
@@ -370,8 +370,17 @@ async def run(phase: str) -> int:
         record(f"# Live tree probe ({phase})")
         record(f"\nEverything created here is marked `{MARKER}`.\n")
         if phase in ("verify-delete", "all"):
-            if not await verify_delete(client, tree):
-                record("\n**Stopping.** Nothing else ran, so nothing needs cleaning.")
+            try:
+                passed = await verify_delete(client, tree)
+            except Exception as error:
+                # Reason: the report is the artifact that gets read, so the
+                # reason has to land in it rather than only in the run log.
+                record(f"- FAIL: {type(error).__name__}: {error}")
+                passed = False
+            if not passed:
+                record("\n**Stopping.** Nothing else ran.")
+                record("Check the ledger artifact: if it is absent or empty,")
+                record("nothing was created and there is nothing to clean up.")
                 return 1
         if phase in ("probe", "all"):
             for experiment in (
