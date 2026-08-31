@@ -19,6 +19,7 @@ Person detail handler for Gramps MCP operations.
 """
 
 from ..models.api_calls import ApiCalls
+from ..utils import styled_text_to_string
 from .date_handler import format_date
 from .place_handler import format_place
 
@@ -301,17 +302,13 @@ async def format_person_detail(client, tree_id: str, handle: str) -> str:
         note_data = await client.make_api_call(
             ApiCalls.GET_NOTE, tree_id=tree_id, handle=note_handle
         )
-        note_type = note_data.get("type", "")
-        if isinstance(note_type, dict):
-            note_type = note_type.get("string", "")
+        note_type = styled_text_to_string(note_data.get("type", ""))
         note_id = note_data.get("gramps_id", "")
         # A note's "text" comes back as a Gramps StyledText dict
         # ({"_class": "StyledText", "string": ...}), not a plain string.
         # Slicing the dict directly raises "unhashable type: 'slice'", which
         # crashed get_type for any person/family that had an attached note.
-        raw_text = note_data.get("text", "")
-        if isinstance(raw_text, dict):
-            raw_text = raw_text.get("string", "")
+        raw_text = styled_text_to_string(note_data.get("text", ""))
         note_text = raw_text[:50]
         if len(raw_text) > 50:
             note_text += "..."
