@@ -43,12 +43,14 @@ from ..models.parameters.base_params import BaseGetMultipleParams
 from ..models.parameters.citation_params import GetCitationsParams
 from ..models.parameters.event_params import EventSearchParams
 from ..models.parameters.media_params import MediaSearchParams
-from ..models.parameters.note_params import NotesParams
 from ..models.parameters.place_params import PlaceSearchParams
 from ..models.parameters.repository_params import RepositoriesParams
 from ..models.parameters.search_params import SearchParams
 from ..models.parameters.source_params import SourceSearchParams
 from .common import format_error_response
+from .note_search import (
+    find_note_tool,  # noqa: F401  (find_type_tool resolves tools through globals())
+)
 
 logger = logging.getLogger(__name__)
 
@@ -356,15 +358,6 @@ async def find_citation_tool(client, arguments: Dict) -> List[TextContent]:
 
 
 @with_client
-async def find_note_tool(client, arguments: Dict) -> List[TextContent]:
-    """
-    Search for notes and research notes.
-    """
-    return await _search_entities(
-        client, arguments, NotesParams, ApiCalls.GET_NOTES, "notes", format_note
-    )
-
-
 async def find_type_tool(arguments) -> List[TextContent]:
     """Universal type-based search tool."""
     from pydantic import BaseModel

@@ -56,6 +56,10 @@ class FamilySaveParams(BaseModel):
             "List of child handles (convenience field, converted to child_ref_list)"
         ),
     )
+    # Reason: this must stay a declared field, not something built only inside
+    # the serializer. FastMCP validates tool arguments into this model, dumps
+    # them, then re-validates the dict; an undeclared key is dropped on the way
+    # back, which silently lost every child (upstream PR #42).
     child_ref_list: Optional[List[Dict[str, Any]]] = Field(
         None,
         description="List of child references with relationship details",
@@ -101,9 +105,15 @@ class FamilySaveParams(BaseModel):
         # Reason: The API expects child_ref_list with full reference objects,
         # but child_handles is more convenient for users to specify
         if self.child_handles is not None:
-            child_refs = [
-                ChildReference(ref=handle).model_dump() for handle in self.child_handles
-            ]
+            child_refs = []
+            for handle in self.child_handles:
+                child_ref = ChildReference(ref=handle).model_dump()
+                # Reason: the Gramps object discriminator. The bundled apispec
+                # does not document it, but the API accepts it and this codebase
+                # already sends it for StyledText, so upstream PR #42 added it
+                # for child references too.
+                child_ref["_class"] = "ChildRef"
+                child_refs.append(child_ref)
             # Merge with any existing child_ref_list
             if self.child_ref_list is not None:
                 existing_refs = set(
