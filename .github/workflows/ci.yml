@@ -26,19 +26,23 @@ jobs:
         run: uv sync --all-groups
 
       - name: Ruff lint
-        run: uv run ruff check src/
+        run: uv run ruff check src/ scripts/
 
       - name: Ruff format
-        run: uv run ruff format --check src/
+        run: uv run ruff format --check src/ scripts/
 
       - name: File length (max 500 lines)
-        run: uv run python scripts/check_file_length.py $(find src -name '*.py')
+        run: |
+          uv run python scripts/check_file_length.py \
+            $(find src scripts -name '*.py')
 
       - name: No emojis
         run: uv run python scripts/check_no_emojis.py $(git ls-files)
 
       - name: Copyright notices
-        run: uv run python scripts/add_copyright_notice.py --check $(find src -name '*.py')
+        run: |
+          uv run python scripts/add_copyright_notice.py --check \
+            $(find src scripts -name '*.py')
 
   smoke:
     name: Import and tool registration (Python ${{ matrix.python-version }})
