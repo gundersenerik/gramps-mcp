@@ -27,7 +27,7 @@ from typing import Callable, Dict, List
 
 from mcp.types import TextContent
 
-from ..client import GrampsAPIError, GrampsWebAPIClient
+from ..client import GrampsWebAPIClient
 from ..config import get_settings
 from ..handlers.citation_handler import format_citation
 from ..handlers.event_handler import format_event
@@ -43,13 +43,25 @@ from ..models.parameters.base_params import BaseGetMultipleParams
 from ..models.parameters.citation_params import GetCitationsParams
 from ..models.parameters.event_params import EventSearchParams
 from ..models.parameters.media_params import MediaSearchParams
-from ..models.parameters.note_params import NotesParams
 from ..models.parameters.place_params import PlaceSearchParams
 from ..models.parameters.repository_params import RepositoriesParams
 from ..models.parameters.search_params import SearchParams
 from ..models.parameters.source_params import SourceSearchParams
+from .common import format_error_response
+from .note_search import (
+    find_note_tool,  # noqa: F401  (find_type_tool resolves tools through globals())
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_params(arguments, param_class):
+    """Validate parameters - skip if already a validated Pydantic model."""
+    from pydantic import BaseModel
+
+    if isinstance(arguments, BaseModel):
+        return arguments
+    return param_class(**arguments)
 
 
 def with_client(func: Callable) -> Callable:
@@ -212,18 +224,7 @@ async def _search_entities(
         return [TextContent(type="text", text=formatted_results)]
 
     except Exception as e:
-        return _format_error_response(e, f"{entity_type} search")
-
-
-def _format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
-    if isinstance(error, GrampsAPIError):
-        error_msg = str(error)
-    else:
-        error_msg = f"Unexpected error during {operation}: {str(error)}"
-
-    logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
+        format_error_response(e, f"{entity_type} search")
 
 
 # ============================================================================
@@ -357,20 +358,19 @@ async def find_citation_tool(client, arguments: Dict) -> List[TextContent]:
 
 
 @with_client
-async def find_note_tool(client, arguments: Dict) -> List[TextContent]:
-    """
-    Search for notes and research notes.
-    """
-    return await _search_entities(
-        client, arguments, NotesParams, ApiCalls.GET_NOTES, "notes", format_note
-    )
-
-
-async def find_type_tool(arguments: Dict) -> List[TextContent]:
+async def find_type_tool(arguments) -> List[TextContent]:
     """Universal type-based search tool."""
-    entity_type = arguments.get("type")
-    gql = arguments.get("gql")
-    max_results = arguments.get("max_results", 20)
+    from pydantic import BaseModel
+
+    # Handle both dict and BaseModel inputs
+    if isinstance(arguments, BaseModel):
+        entity_type = arguments.type
+        gql = arguments.gql
+        max_results = getattr(arguments, "max_results", 20)
+    else:
+        entity_type = arguments.get("type")
+        gql = arguments.get("gql")
+        max_results = arguments.get("max_results", 20)
 
     # Get the string value from the enum if needed
     entity_type_str = (
@@ -391,13 +391,28 @@ async def find_type_tool(arguments: Dict) -> List[TextContent]:
 
 
 @with_client
-async def find_anything_tool(client, arguments: Dict) -> List[TextContent]:
+async def find_anything_tool(client, arguments) -> List[TextContent]:
     """
     Full-text search across all entity types.
     """
     try:
-        # Validate parameters
-        params = SearchParams(**arguments)
+        from pydantic import BaseModel
+
+        # Normalize arguments to a plain dict regardless of transport type.
+        # Reason: The MCP SDK may pass a Pydantic model or a raw dict depending
+        # on the transport (FastMCP vs stdio). Using model_dump() on any BaseModel
+        # avoids fragile isinstance chains that break when the model is reconstructed
+        # under a different import path or SDK version.
+        if isinstance(arguments, BaseModel):
+            data = arguments.model_dump()
+        elif isinstance(arguments, dict):
+            data = arguments
+        else:
+            data = {}
+
+        params = SearchParams(
+            query=data.get("query", ""), pagesize=data.get("max_results", 20)
+        )
 
         # Get tree_id from settings
         settings = get_settings()
@@ -449,4 +464,4 @@ async def find_anything_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_results)]
 
     except Exception as e:
-        return _format_error_response(e, "full-text search")
+        format_error_response(e, "full-text search")

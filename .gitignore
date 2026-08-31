@@ -7,3 +7,5 @@ __pycache__
 .pytest_cache
 .env
 .claude/
+probe-ledger.json
+probe-report.md

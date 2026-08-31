@@ -22,38 +22,36 @@ person and family information using direct API calls.
 """
 
 import logging
-from typing import Dict, List
+from typing import List
 
 from mcp.types import TextContent
 
-from ..client import GrampsAPIError
 from ..config import get_settings
 from ..handlers.family_detail_handler import format_family_detail
 from ..handlers.person_detail_handler import format_person_detail
+from .common import format_error_response
 from .search_basic import with_client
 
 logger = logging.getLogger(__name__)
 
 
-def _format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
-    if isinstance(error, GrampsAPIError):
-        error_msg = str(error)
-    else:
-        error_msg = f"Unexpected error during {operation}: {str(error)}"
+def _get_arg(arguments, key, default=None):
+    """Get argument value from either dict or BaseModel."""
+    from pydantic import BaseModel
 
-    logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
+    if isinstance(arguments, BaseModel):
+        return getattr(arguments, key, default)
+    return arguments.get(key, default)
 
 
 @with_client
-async def get_person_tool(client, arguments: Dict) -> List[TextContent]:
+async def get_person_tool(client, arguments) -> List[TextContent]:
     """
     Get comprehensive person information using direct API calls.
     """
     try:
-        # Extract handle from arguments
-        handle = arguments.get("person_handle")
+        # Extract handle from arguments (handles both dict and BaseModel)
+        handle = _get_arg(arguments, "person_handle")
         if not handle:
             raise ValueError("person_handle is required")
 
@@ -67,17 +65,17 @@ async def get_person_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_person)]
 
     except Exception as e:
-        return _format_error_response(e, "person details retrieval")
+        format_error_response(e, "person details retrieval")
 
 
 @with_client
-async def get_family_tool(client, arguments: Dict) -> List[TextContent]:
+async def get_family_tool(client, arguments) -> List[TextContent]:
     """
     Get detailed family information using direct API calls.
     """
     try:
-        # Extract handle from arguments
-        handle = arguments.get("family_handle")
+        # Extract handle from arguments (handles both dict and BaseModel)
+        handle = _get_arg(arguments, "family_handle")
         if not handle:
             raise ValueError("family_handle is required")
 
@@ -91,14 +89,14 @@ async def get_family_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_family)]
 
     except Exception as e:
-        return _format_error_response(e, "family details retrieval")
+        format_error_response(e, "family details retrieval")
 
 
-async def get_type_tool(arguments: Dict) -> List[TextContent]:
+async def get_type_tool(arguments) -> List[TextContent]:
     """Universal get tool for person and family details."""
-    entity_type = arguments.get("type")
-    handle = arguments.get("handle")
-    gramps_id = arguments.get("gramps_id")
+    entity_type = _get_arg(arguments, "type")
+    handle = _get_arg(arguments, "handle")
+    gramps_id = _get_arg(arguments, "gramps_id")
 
     # If gramps_id provided but no handle, find the handle first
     if gramps_id and not handle:
@@ -108,13 +106,26 @@ async def get_type_tool(arguments: Dict) -> List[TextContent]:
             {"type": entity_type, "gql": f'gramps_id="{gramps_id}"', "max_results": 1}
         )
 
-        # Extract handle from search result
+        # Extract handle from search result.
+        # The formatted identity line looks like:
+        #   "[Unknown] Berry (M) - I0089 - [1034b42418c65209fb87d0d52d4c]"
+        # A naive first-"[...]" match grabs bracketed name tokens such as
+        # "[Unknown]" instead of the handle, producing a bogus handle and a
+        # "Record not found" error. Gramps handles are long hex strings, so
+        # match those specifically; fall back to the last bracketed token on
+        # the first result block (the format always ends the identity line
+        # with the handle).
         search_text = search_result[0].text
         import re
 
-        handle_match = re.search(r"\[([^\]]+)\]", search_text)
-        if handle_match:
-            handle = handle_match.group(1)
+        handle_matches = re.findall(r"\[([0-9a-fA-F]{16,})\]", search_text)
+        if handle_matches:
+            handle = handle_matches[0]
+        else:
+            first_block = search_text.split("\n\n")[0]
+            generic = re.findall(r"\[([^\]]+)\]", first_block)
+            if generic:
+                handle = generic[-1]
 
     if entity_type == "person" and handle:
         return await get_person_tool({"person_handle": handle})

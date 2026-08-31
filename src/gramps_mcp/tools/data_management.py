@@ -14,29 +14,23 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
-Data management MCP tools for genealogy operations.
 
-This module contains 8 CRUD tools for creating and updating people, families,
-events, places, sources, citations, notes, and media records.
+"""
+Create and update MCP tools for genealogy records.
+
+This module contains the tools that create or update people, families,
+events, places, sources, citations, notes, media records and repositories.
 """
 
 import logging
+import mimetypes
+import os
 from typing import Dict, List
 
 from mcp.types import TextContent
 
 from ..client import GrampsAPIError, GrampsWebAPIClient
 from ..config import get_settings
-from ..handlers.citation_handler import format_citation
-from ..handlers.event_handler import format_event
-from ..handlers.family_handler import format_family
-from ..handlers.media_handler import format_media
-from ..handlers.note_handler import format_note
-from ..handlers.person_handler import format_person
-from ..handlers.place_handler import format_place
-from ..handlers.repository_handler import format_repository
-from ..handlers.source_handler import format_source
 from ..models.api_calls import ApiCalls
 from ..models.parameters.citation_params import CitationData
 from ..models.parameters.event_params import EventSaveParams
@@ -47,138 +41,15 @@ from ..models.parameters.people_params import PersonData
 from ..models.parameters.place_params import PlaceSaveParams
 from ..models.parameters.repository_params import RepositoryData
 from ..models.parameters.source_params import SourceSaveParams
+from .common import format_error_response
+from .crud_common import (
+    _extract_entity_data,
+    _format_save_response,
+    _handle_crud_operation,
+    _validate_params,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
-    if isinstance(error, GrampsAPIError):
-        error_msg = str(error)
-    else:
-        error_msg = f"Unexpected error during {operation}: {str(error)}"
-
-    logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
-
-
-def _extract_entity_data(result, entity_type: str = None):
-    """Extract entity data from API response, handling different formats."""
-    if not result:
-        return None
-
-    # Handle family creation special case - find Family entry in response list
-    if entity_type == "family" and isinstance(result, list) and len(result) > 1:
-        family_entry = None
-        for entry in result:
-            if entry.get("new", {}).get("_class") == "Family":
-                family_entry = entry["new"]
-                break
-        return family_entry if family_entry else result[0].get("new", result[0])
-
-    # Standard case - API may return list or single object
-    return (
-        result[0]["new"]
-        if result and isinstance(result, list) and result[0].get("new")
-        else result
-    )
-
-
-async def _handle_crud_operation(
-    params, entity_type: str, post_api_call, put_api_call, param_class
-) -> List[TextContent]:
-    """Common helper for create/update operations."""
-    try:
-        # Validate parameters
-        validated_params = param_class(**params)
-
-        # Get tree_id from settings
-        settings = get_settings()
-        tree_id = settings.gramps_tree_id
-
-        # Create client and make unified API call
-        client = GrampsWebAPIClient()
-        try:
-            # Choose API call based on whether handle is provided (update vs create)
-            if hasattr(validated_params, "handle") and validated_params.handle:
-                # Update existing entity
-                result = await client.make_api_call(
-                    api_call=put_api_call,
-                    params=validated_params,
-                    tree_id=tree_id,
-                    handle=validated_params.handle,
-                )
-                operation = "updated"
-            else:
-                # Create new entity
-                result = await client.make_api_call(
-                    api_call=post_api_call, params=validated_params, tree_id=tree_id
-                )
-                operation = "created"
-
-            # Extract entity data from API response
-            entity_data = _extract_entity_data(result, entity_type)
-            formatted_response = await _format_save_response(
-                client, entity_data, entity_type, operation, tree_id
-            )
-            return [TextContent(type="text", text=formatted_response)]
-
-        finally:
-            await client.close()
-
-    except Exception as e:
-        return _format_error_response(e, f"{entity_type} save")
-
-
-async def _format_save_response(
-    client: GrampsWebAPIClient,
-    entity_data: Dict,
-    entity_type: str,
-    operation: str,
-    tree_id: str,
-) -> str:
-    """Format successful save operation response using appropriate format handler."""
-    handle = entity_data.get("handle", "N/A")
-    gramps_id = entity_data.get("gramps_id", "N/A")
-
-    try:
-        # Use the appropriate format handler to get consistent formatting
-        if entity_type == "person":
-            formatted_details = await format_person(client, tree_id, handle)
-        elif entity_type == "family":
-            formatted_details = await format_family(client, tree_id, handle)
-        elif entity_type == "event":
-            formatted_details = await format_event(client, tree_id, handle)
-        elif entity_type == "place":
-            formatted_details = await format_place(client, tree_id, handle)
-        elif entity_type == "source":
-            formatted_details = await format_source(client, tree_id, handle)
-        elif entity_type == "citation":
-            formatted_details = await format_citation(client, tree_id, handle)
-        elif entity_type == "media":
-            formatted_details = await format_media(client, tree_id, handle)
-        elif entity_type == "note":
-            formatted_details = await format_note(client, tree_id, handle)
-        elif entity_type == "repository":
-            formatted_details = await format_repository(client, tree_id, handle)
-        else:
-            # Fallback for unknown types
-            formatted_details = (
-                f"• **{entity_type.title()} {gramps_id}** " f"(Handle: `{handle}`)\n\n"
-            )
-
-        # Add success prefix to the formatted details
-        result = f"Successfully {operation} {entity_type}:\n\n{formatted_details}"
-        return result
-
-    except Exception as e:
-        logger.warning(f"Error formatting {entity_type} details: {e}")
-        # Fallback to basic formatting if handler fails
-        display_name = f"{entity_type.title()} {gramps_id}"
-        result = f"Successfully {operation} {entity_type}: **{display_name}**\n\n"
-        result += f"**ID:** {gramps_id}\n"
-        result += f"**Handle:** `{handle}`\n"
-        return result
 
 
 # ============================================================================
@@ -195,13 +66,13 @@ async def create_person_tool(arguments: Dict) -> List[TextContent]:
     )
 
 
-async def create_family_tool(arguments: Dict) -> List[TextContent]:
+async def create_family_tool(arguments) -> List[TextContent]:
     """
     Create or update family unit including member relationships.
     """
     try:
-        # Validate parameters
-        params = FamilySaveParams(**arguments)
+        # Validate parameters - handles both dict and BaseModel inputs
+        params = _validate_params(arguments, FamilySaveParams)
 
         # Get tree_id from settings
         settings = get_settings()
@@ -238,7 +109,7 @@ async def create_family_tool(arguments: Dict) -> List[TextContent]:
             await client.close()
 
     except Exception as e:
-        return _format_error_response(e, "family save")
+        format_error_response(e, "family save")
 
 
 async def create_event_tool(arguments: Dict) -> List[TextContent]:
@@ -294,19 +165,25 @@ async def create_note_tool(arguments: Dict) -> List[TextContent]:
     )
 
 
-async def create_media_tool(arguments: Dict) -> List[TextContent]:
+async def create_media_tool(arguments) -> List[TextContent]:
     """
     Create or update media files including object associations.
     """
-    import mimetypes
-    import os
+    from pydantic import BaseModel
 
     try:
+        # Handle both dict and BaseModel inputs
+        if isinstance(arguments, BaseModel):
+            # Convert to dict for processing
+            args_dict = arguments.model_dump()
+        else:
+            args_dict = arguments
+
         # Extract file_location separately (not part of MediaSaveParams)
-        file_location = arguments.get("file_location")
+        file_location = args_dict.get("file_location")
 
         # All other arguments are for metadata
-        media_params = {k: v for k, v in arguments.items() if k != "file_location"}
+        media_params = {k: v for k, v in args_dict.items() if k != "file_location"}
         params = MediaSaveParams(**media_params) if media_params else None
 
         settings = get_settings()
@@ -377,34 +254,32 @@ async def create_media_tool(arguments: Dict) -> List[TextContent]:
             await client.close()
 
     except Exception as e:
-        return _format_error_response(e, "media save")
+        format_error_response(e, "media save")
 
 
-async def create_repository_tool(arguments: Dict) -> List[TextContent]:
+async def create_repository_tool(arguments) -> List[TextContent]:
     """
     Create or update repository information.
     """
     try:
-        # Let Pydantic model handle parameter validation
+        # Validate parameters - handles both dict and BaseModel inputs
+        params = _validate_params(arguments, RepositoryData)
 
         # Assert required parameters
-        if not arguments.get("name"):
+        if not params.name:
             return [
                 TextContent(
                     type="text",
                     text="Error: 'name' parameter is required for repository",
                 )
             ]
-        if not arguments.get("type"):
+        if not params.type:
             return [
                 TextContent(
                     type="text",
                     text="Error: 'type' parameter is required for repository",
                 )
             ]
-
-        # Validate parameters
-        params = RepositoryData(**arguments)
 
         # Get tree_id from settings
         settings = get_settings()
@@ -441,4 +316,4 @@ async def create_repository_tool(arguments: Dict) -> List[TextContent]:
             await client.close()
 
     except Exception as e:
-        return _format_error_response(e, "repository save")
+        format_error_response(e, "repository save")

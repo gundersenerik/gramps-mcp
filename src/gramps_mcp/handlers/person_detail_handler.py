@@ -19,6 +19,7 @@ Person detail handler for Gramps MCP operations.
 """
 
 from ..models.api_calls import ApiCalls
+from ..utils import styled_text_to_string
 from .date_handler import format_date
 from .place_handler import format_place
 
@@ -46,6 +47,28 @@ async def format_person_detail(client, tree_id: str, handle: str) -> str:
     gender_display = _get_gender_letter(person_data.get("gender", 2))
 
     result += f"{name} ({gender_display}) - {gramps_id} - [{handle}]\n"
+
+    # Alternate names (married names, maiden names, etc.)
+    alternate_names = person_data.get("alternate_names", [])
+    if alternate_names:
+        alt_name_strs = []
+        for alt_name in alternate_names:
+            alt_given = alt_name.get("first_name", "")
+            alt_surname_list = alt_name.get("surname_list", [])
+            alt_surname = (
+                alt_surname_list[0].get("surname", "") if alt_surname_list else ""
+            )
+            alt_full = f"{alt_given} {alt_surname}".strip()
+            alt_type = alt_name.get("type", "")
+            if isinstance(alt_type, dict):
+                alt_type = alt_type.get("string", "") or alt_type.get("_class", "")
+            if alt_full:
+                if alt_type:
+                    alt_name_strs.append(f"{alt_full} ({alt_type})")
+                else:
+                    alt_name_strs.append(alt_full)
+        if alt_name_strs:
+            result += f"Also known as: {', '.join(alt_name_strs)}\n"
 
     # Birth and death from extended data
     extended = person_data.get("extended", {})
@@ -279,10 +302,15 @@ async def format_person_detail(client, tree_id: str, handle: str) -> str:
         note_data = await client.make_api_call(
             ApiCalls.GET_NOTE, tree_id=tree_id, handle=note_handle
         )
-        note_type = note_data.get("type", "")
+        note_type = styled_text_to_string(note_data.get("type", ""))
         note_id = note_data.get("gramps_id", "")
-        note_text = note_data.get("text", "")[:50]
-        if len(note_data.get("text", "")) > 50:
+        # A note's "text" comes back as a Gramps StyledText dict
+        # ({"_class": "StyledText", "string": ...}), not a plain string.
+        # Slicing the dict directly raises "unhashable type: 'slice'", which
+        # crashed get_type for any person/family that had an attached note.
+        raw_text = styled_text_to_string(note_data.get("text", ""))
+        note_text = raw_text[:50]
+        if len(raw_text) > 50:
             note_text += "..."
         result += f"- {note_type}: {note_text} ({note_id})\n"
 

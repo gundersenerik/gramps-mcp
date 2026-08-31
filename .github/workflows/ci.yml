@@ -1,0 +1,91 @@
+name: CI
+
+# Quality gates run here rather than only in the local pre-commit hooks, so a
+# clone is never required to verify a change.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint and repo rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Ruff lint
+        run: uv run ruff check src/ scripts/
+
+      - name: Ruff format
+        run: uv run ruff format --check src/ scripts/
+
+      - name: File length (max 500 lines)
+        run: |
+          uv run python scripts/check_file_length.py \
+            $(find src scripts -name '*.py')
+
+      - name: No emojis
+        run: uv run python scripts/check_no_emojis.py $(git ls-files)
+
+      - name: Copyright notices
+        run: |
+          uv run python scripts/add_copyright_notice.py --check \
+            $(find src scripts -name '*.py')
+
+  smoke:
+    name: Import and tool registration (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Covers the floor declared in pyproject.toml, the version the
+        # Dockerfile ships, and the next release.
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync --all-groups --python ${{ matrix.python-version }}
+
+      # The suite is integration-only by design and needs a live Gramps Web
+      # instance, so CI imports every test module without running it. That
+      # still catches syntax and import errors on each supported Python.
+      - name: Collect tests
+        run: uv run pytest --collect-only -q
+
+      - name: All tools register with a clean schema
+        run: |
+          uv run python - <<'PY'
+          import asyncio
+
+          from src.gramps_mcp.server import app
+          from src.gramps_mcp.tool_registry import TOOL_REGISTRY
+
+          tools = asyncio.run(app.list_tools())
+          assert len(tools) == len(TOOL_REGISTRY), (
+              f"{len(tools)} tools published, {len(TOOL_REGISTRY)} in the registry"
+          )
+          for tool in tools:
+              properties = tool.inputSchema.get("properties") or {}
+              assert "handler" not in properties, f"{tool.name} leaks its handler"
+          print(f"{len(tools)} tools registered")
+          PY

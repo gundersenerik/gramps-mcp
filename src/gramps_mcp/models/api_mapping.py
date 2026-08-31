@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from .api_calls import ApiCalls
 from .parameters.base_params import BaseGetMultipleParams, BaseGetSingleParams
 from .parameters.citation_params import CitationData, GetCitationsParams
-from .parameters.event_params import EventSaveParams, EventSearchParams, EventSpanParams
+from .parameters.event_params import EventSaveParams, EventSearchParams
 from .parameters.facts_params import FactsParams
 from .parameters.family_params import FamilySaveParams, FamilyTimelineParams
 from .parameters.holidays_params import HolidaysParams
@@ -86,7 +86,8 @@ API_CALL_PARAMS: Dict[ApiCalls, Optional[Type[BaseModel]]] = {
     ApiCalls.GET_EVENT: BaseGetSingleParams,
     ApiCalls.PUT_EVENT: EventSaveParams,
     ApiCalls.DELETE_EVENT: None,  # Only needs handle (via URL)
-    ApiCalls.GET_EVENT_SPAN: EventSpanParams,
+    # Handles via URL, optional query params don't need validation
+    ApiCalls.GET_EVENT_SPAN: None,
     # PLACES operations
     ApiCalls.GET_PLACES: BaseGetMultipleParams,
     ApiCalls.POST_PLACES: PlaceSaveParams,

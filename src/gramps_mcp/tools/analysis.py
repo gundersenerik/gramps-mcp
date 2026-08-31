@@ -14,164 +14,34 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
-Analysis MCP tools for genealogy operations.
 
-This module contains 4 analysis tools for genealogy research including
-tree statistics, ancestor/descendant discovery, and recent changes tracking.
+"""
+Tree-walking analysis MCP tools.
+
+This module covers tree statistics, ancestor and descendant discovery,
+and recent change tracking.
 """
 
-import asyncio
 import json
 import logging
 from typing import Dict, List
 
 from mcp.types import TextContent
 
-from ..client import GrampsAPIError, GrampsWebAPIClient
+from ..client import GrampsAPIError
 from ..config import get_settings
 from ..models.api_calls import ApiCalls
 from ..models.parameters.reports_params import ReportFileParams
-from ..utils import get_gramps_id_from_handle, html_to_markdown
+from ..utils import html_to_markdown
+from .analysis_common import (
+    _format_recent_changes,
+    _get_arg,
+    _wait_for_task_completion,
+)
+from .common import format_error_response
 from .search_basic import with_client
 
 logger = logging.getLogger(__name__)
-
-
-def _format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
-    if isinstance(error, GrampsAPIError):
-        error_msg = str(error)
-    else:
-        error_msg = f"Unexpected error during {operation}: {str(error)}"
-
-    logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
-
-
-async def _format_recent_changes(
-    transactions: List[Dict], client: GrampsWebAPIClient, tree_id: str
-) -> str:
-    """Format transaction history results."""
-    if not transactions:
-        return "No recent changes found."
-
-    result = f"Found {len(transactions)} recent changes:\n\n"
-
-    for transaction in transactions:
-        # Extract transaction information
-        timestamp = transaction.get("timestamp", "Unknown time")
-        description = transaction.get("description", "Transaction")
-
-        # Convert timestamp to human readable format
-        if isinstance(timestamp, (int, float)):
-            from datetime import datetime
-
-            formatted_time = datetime.fromtimestamp(timestamp).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-        else:
-            formatted_time = str(timestamp)
-
-        # User information
-        connection = transaction.get("connection", {})
-        user = connection.get("user", {})
-        user_name = user.get("name", "Unknown") if user else "Unknown"
-
-        # Changes in this transaction
-        changes = transaction.get("changes", [])
-        change_count = len(changes)
-
-        result += f"• **{description}**\n"
-        result += f"  Time: {formatted_time}\n"
-        result += f"  User: {user_name}\n"
-
-        if changes:
-            result += "  Objects changed:\n"
-            for change in changes[:3]:  # Show first 3 changes
-                obj_class = change.get("obj_class", "Unknown")
-                obj_handle = change.get("obj_handle", "N/A")
-
-                # Get gramps_id from handle using utility function
-                gramps_id = await get_gramps_id_from_handle(
-                    client, obj_class, obj_handle, tree_id
-                )
-                result += f"    - {obj_class}: {gramps_id}\n"
-            if len(changes) > 3:
-                result += f"    - ... and {len(changes) - 3} more\n"
-        else:
-            result += f"  Changes: {change_count} objects modified\n"
-
-        result += "\n"
-
-    return result
-
-
-async def _wait_for_task_completion(
-    client: GrampsWebAPIClient, task_id: str, tree_id: str, timeout: int = 60
-) -> Dict:
-    """
-    Wait for an async task to complete by polling its status.
-
-    Args:
-        client: Gramps API client
-        task_id: Task ID to poll
-        tree_id: Tree ID (unused for tasks, but kept for compatibility)
-        timeout: Maximum wait time in seconds
-
-    Returns:
-        Dict: Completed task result containing filename
-
-    Raises:
-        GrampsAPIError: If task fails or times out
-    """
-    start_time = asyncio.get_event_loop().time()
-    sleep_interval = 2  # Start with 2 second intervals
-    max_sleep = 10  # Maximum sleep interval
-
-    while True:
-        elapsed = asyncio.get_event_loop().time() - start_time
-        if elapsed > timeout:
-            raise GrampsAPIError(f"Task {task_id} timed out after {timeout} seconds")
-
-        try:
-            # Poll task status using direct HTTP call
-            # (tasks are global, not tree-specific)
-            task_url = f"{client.base_url}/tasks/{task_id}"
-            task_status = await client._make_request("GET", task_url)
-
-            logger.debug(f"Task {task_id} status: {task_status}")
-
-            # Check if task is complete (use 'state' field, not 'status')
-            state = task_status.get("state", "").upper()
-            if state == "SUCCESS":
-                # Task completed successfully, return the result_object
-                result = task_status.get("result_object") or task_status.get("result")
-                if result:
-                    return result
-                else:
-                    logger.warning(
-                        f"Task {task_id} succeeded but no result found: {task_status}"
-                    )
-                    return task_status
-            elif state == "FAILURE" or state == "FAILED":
-                error_msg = task_status.get("info", "Task failed")
-                raise GrampsAPIError(f"Task {task_id} failed: {error_msg}")
-
-            # Task still running, wait before checking again
-            logger.debug(
-                f"Task {task_id} still running (state: {state}), "
-                f"waiting {sleep_interval}s..."
-            )
-            await asyncio.sleep(sleep_interval)
-
-            # Exponential backoff, but cap at max_sleep
-            sleep_interval = min(sleep_interval * 1.5, max_sleep)
-
-        except Exception as e:
-            if isinstance(e, GrampsAPIError):
-                raise
-            raise GrampsAPIError(f"Error polling task {task_id}: {str(e)}")
 
 
 # ============================================================================
@@ -180,14 +50,14 @@ async def _wait_for_task_completion(
 
 
 @with_client
-async def get_descendants_tool(client, arguments: Dict) -> List[TextContent]:
+async def get_descendants_tool(client, arguments) -> List[TextContent]:
     """
     Find all descendants of a person.
     """
     try:
-        # Extract arguments directly
-        gramps_id = arguments.get("gramps_id")
-        max_generations = arguments.get("max_generations")
+        # Extract arguments (handles both dict and BaseModel)
+        gramps_id = _get_arg(arguments, "gramps_id")
+        max_generations = _get_arg(arguments, "max_generations")
 
         if not gramps_id:
             raise ValueError("gramps_id is required")
@@ -269,18 +139,18 @@ async def get_descendants_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=markdown_content)]
 
     except Exception as e:
-        return _format_error_response(e, "descendants search")
+        format_error_response(e, "descendants search")
 
 
 @with_client
-async def get_ancestors_tool(client, arguments: Dict) -> List[TextContent]:
+async def get_ancestors_tool(client, arguments) -> List[TextContent]:
     """
     Find all ancestors of a person.
     """
     try:
-        # Extract arguments directly
-        gramps_id = arguments.get("gramps_id")
-        max_generations = arguments.get("max_generations")
+        # Extract arguments (handles both dict and BaseModel)
+        gramps_id = _get_arg(arguments, "gramps_id")
+        max_generations = _get_arg(arguments, "max_generations")
 
         if not gramps_id:
             raise ValueError("gramps_id is required")
@@ -362,7 +232,7 @@ async def get_ancestors_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=markdown_content)]
 
     except Exception as e:
-        return _format_error_response(e, "ancestors search")
+        format_error_response(e, "ancestors search")
 
 
 @with_client
@@ -393,7 +263,7 @@ async def get_recent_changes_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_changes)]
 
     except Exception as e:
-        return _format_error_response(e, "recent changes retrieval")
+        format_error_response(e, "recent changes retrieval")
 
 
 def _format_tree_info(tree_info: Dict) -> str:
@@ -428,7 +298,7 @@ def _format_tree_info(tree_info: Dict) -> str:
 
 
 @with_client
-async def get_tree_info_tool(client, _arguments: Dict) -> List[TextContent]:
+async def get_tree_info_tool(client, _arguments) -> List[TextContent]:
     """
     Get information about a specific tree including statistics.
 
@@ -448,4 +318,4 @@ async def get_tree_info_tool(client, _arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_info)]
 
     except Exception as e:
-        return _format_error_response(e, "tree information retrieval")
+        format_error_response(e, "tree information retrieval")

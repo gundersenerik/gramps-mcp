@@ -19,6 +19,7 @@ Family detail handler for Gramps MCP operations.
 """
 
 from ..models.api_calls import ApiCalls
+from ..utils import styled_text_to_string
 from .date_handler import format_date
 from .place_handler import format_place
 
@@ -212,10 +213,13 @@ async def format_family_detail(client, tree_id: str, handle: str) -> str:
                 note_data = await client.make_api_call(
                     ApiCalls.GET_NOTE, tree_id=tree_id, handle=note_handle
                 )
-                note_type = note_data.get("type", "")
+                note_type = styled_text_to_string(note_data.get("type", ""))
                 note_id = note_data.get("gramps_id", "")
-                note_text = note_data.get("text", "")[:50]  # First 50 chars
-                if len(note_data.get("text", "")) > 50:
+                # note "text" is a StyledText dict ({"string": ...}); slicing the
+                # dict raises "unhashable type: 'slice'". Extract the string.
+                raw_text = styled_text_to_string(note_data.get("text", ""))
+                note_text = raw_text[:50]  # First 50 chars
+                if len(raw_text) > 50:
                     note_text += "..."
                 result += f"- {note_type}: {note_text} ({note_id})\n"
             except Exception:

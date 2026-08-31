@@ -18,9 +18,34 @@
 Utility functions for gramps_mcp.
 """
 
+from typing import Any
+
 from markdownify import markdownify as md
 
 from .models.api_calls import ApiCalls
+
+
+def styled_text_to_string(value: Any) -> Any:
+    """
+    Unwrap a Gramps StyledText value into a plain string.
+
+    The Gramps Web API returns rich-text fields such as a note's ``text`` and
+    a note's ``type`` as ``{"_class": "StyledText", "string": ..., "tags": []}``
+    rather than a bare string.
+
+    Args:
+        value (Any): A field that may be a StyledText mapping or a plain value.
+
+    Returns:
+        Any: The inner string when given a mapping, otherwise the value
+            unchanged.
+    """
+    # Reason: callers slice and measure these values. Slicing the mapping
+    # raises "unhashable type: 'slice'", which crashed get_type for every
+    # person or family that had a note attached (upstream issues #29 and #30).
+    if isinstance(value, dict):
+        return value.get("string", "")
+    return value
 
 
 def html_to_markdown(html: str) -> str:
