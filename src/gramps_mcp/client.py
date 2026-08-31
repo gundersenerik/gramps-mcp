@@ -43,6 +43,26 @@ class GrampsAPIError(Exception):
     pass
 
 
+def _serialize_params(validated_params, **dump_kwargs):
+    """
+    Serialize validated parameters for the Gramps Web REST API.
+
+    Args:
+        validated_params (BaseModel): The validated request parameters.
+        **dump_kwargs: Forwarded to the model's dump method, so callers keep
+            control over exclude_none / exclude_unset behaviour.
+
+    Returns:
+        Dict[str, Any]: The payload to send.
+    """
+    # Reason: the API represents handle lists as [{"ref": handle}] rather than
+    # bare strings. Models that need that shape expose to_api_payload; plain
+    # models are dumped as-is.
+    if hasattr(validated_params, "to_api_payload"):
+        return validated_params.to_api_payload(**dump_kwargs)
+    return validated_params.model_dump(**dump_kwargs)
+
+
 class GrampsWebAPIClient:
     """Unified async HTTP client for all Gramps Web API operations."""
 
@@ -241,11 +261,11 @@ class GrampsWebAPIClient:
             ):
                 # For POST/PUT, include all non-None values
                 # (APIs expect complete objects)
-                json_data = validated_params.model_dump(exclude_none=True)
+                json_data = _serialize_params(validated_params, exclude_none=True)
             else:
                 # For GET, only include explicitly set values (not defaults)
                 # This prevents sending extra params that APIs may reject
-                request_params = validated_params.model_dump(exclude_unset=True)
+                request_params = _serialize_params(validated_params, exclude_unset=True)
 
         # For PUT operations, preserve existing data by merging with changes
         if api_call.method == "PUT" and json_data:
