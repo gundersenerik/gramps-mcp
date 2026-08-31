@@ -27,16 +27,8 @@ This module exports all 39 genealogy tools organized by category:
 from .analysis import (
     get_ancestors_tool,
     get_descendants_tool,
-    get_event_span_tool,
-    get_facts_tool,
-    get_families_timeline_tool,
-    get_living_tool,
-    get_people_timeline_tool,
     get_recent_changes_tool,
-    get_relations_all_tool,
-    get_relations_tool,
     get_tree_info_tool,
-    get_types_tool,
 )
 
 # Data Management Tools (25 tools)
@@ -50,7 +42,8 @@ from .data_management import (
     create_place_tool,
     create_repository_tool,
     create_source_tool,
-    create_tag_tool,
+)
+from .deletes import (
     delete_citation_tool,
     delete_event_tool,
     delete_family_tool,
@@ -60,11 +53,17 @@ from .data_management import (
     delete_place_tool,
     delete_repository_tool,
     delete_source_tool,
-    delete_tag_tool,
-    find_tags_tool,
+)
+from .media_files import (
     get_media_file_tool,
     update_media_file_tool,
     upload_media_file_tool,
+)
+from .relations import (
+    get_facts_tool,
+    get_living_tool,
+    get_relations_all_tool,
+    get_relations_tool,
 )
 from .search_basic import (
     find_anything_tool,
@@ -80,6 +79,17 @@ from .search_basic import (
 from .search_details import (
     get_family_tool,
     get_person_tool,
+)
+from .tags import (
+    create_tag_tool,
+    delete_tag_tool,
+    find_tags_tool,
+)
+from .timelines import (
+    get_event_span_tool,
+    get_families_timeline_tool,
+    get_people_timeline_tool,
+    get_types_tool,
 )
 
 # Export all tools for easy import
