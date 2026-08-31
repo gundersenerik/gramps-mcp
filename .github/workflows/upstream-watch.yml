@@ -1,0 +1,50 @@
+name: Upstream watch
+
+# Reports upstream activity and nothing more. No branches, no merges and no
+# pull requests are created; findings arrive as comments on a tracking issue.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check cabout-me/gramps-mcp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the fork's main can be compared against upstream.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Creating an issue with an unknown label is not guaranteed to create it,
+      # so make sure it exists first. Re-running is harmless.
+      - name: Ensure the tracking label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create upstream-watch \
+            --description "Notifications about the upstream repository" \
+            --color ededed || true
+
+      - name: Report new upstream commits and pull requests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python scripts/upstream_watch.py \
+            --upstream cabout-me/gramps-mcp \
+            --branch main \
+            --local-ref origin/main
