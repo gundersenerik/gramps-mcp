@@ -92,7 +92,7 @@ async def get_relations_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=result)]
 
     except Exception as e:
-        return format_error_response(e, "relationship lookup")
+        format_error_response(e, "relationship lookup")
 
 
 # ============================================================================
@@ -151,7 +151,7 @@ async def get_relations_all_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=result)]
 
     except Exception as e:
-        return format_error_response(e, "all relationships lookup")
+        format_error_response(e, "all relationships lookup")
 
 
 # ============================================================================
@@ -193,7 +193,7 @@ async def get_living_tool(client, arguments) -> List[TextContent]:
         ]
 
     except Exception as e:
-        return format_error_response(e, "living status check")
+        format_error_response(e, "living status check")
 
 
 # ============================================================================
@@ -258,4 +258,4 @@ async def get_facts_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=result)]
 
     except Exception as e:
-        return format_error_response(e, "facts retrieval")
+        format_error_response(e, "facts retrieval")

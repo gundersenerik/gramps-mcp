@@ -27,7 +27,7 @@ from typing import Callable, Dict, List
 
 from mcp.types import TextContent
 
-from ..client import GrampsAPIError, GrampsWebAPIClient
+from ..client import GrampsWebAPIClient
 from ..config import get_settings
 from ..handlers.citation_handler import format_citation
 from ..handlers.event_handler import format_event
@@ -48,6 +48,7 @@ from ..models.parameters.place_params import PlaceSearchParams
 from ..models.parameters.repository_params import RepositoriesParams
 from ..models.parameters.search_params import SearchParams
 from ..models.parameters.source_params import SourceSearchParams
+from .common import format_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -221,18 +222,7 @@ async def _search_entities(
         return [TextContent(type="text", text=formatted_results)]
 
     except Exception as e:
-        return _format_error_response(e, f"{entity_type} search")
-
-
-def _format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
-    if isinstance(error, GrampsAPIError):
-        error_msg = str(error)
-    else:
-        error_msg = f"Unexpected error during {operation}: {str(error)}"
-
-    logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
+        format_error_response(e, f"{entity_type} search")
 
 
 # ============================================================================
@@ -481,4 +471,4 @@ async def find_anything_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_results)]
 
     except Exception as e:
-        return _format_error_response(e, "full-text search")
+        format_error_response(e, "full-text search")

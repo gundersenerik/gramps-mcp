@@ -26,10 +26,10 @@ from typing import List
 
 from mcp.types import TextContent
 
-from ..client import GrampsAPIError
 from ..config import get_settings
 from ..handlers.family_detail_handler import format_family_detail
 from ..handlers.person_detail_handler import format_person_detail
+from .common import format_error_response
 from .search_basic import with_client
 
 logger = logging.getLogger(__name__)
@@ -42,17 +42,6 @@ def _get_arg(arguments, key, default=None):
     if isinstance(arguments, BaseModel):
         return getattr(arguments, key, default)
     return arguments.get(key, default)
-
-
-def _format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
-    if isinstance(error, GrampsAPIError):
-        error_msg = str(error)
-    else:
-        error_msg = f"Unexpected error during {operation}: {str(error)}"
-
-    logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
 
 
 @with_client
@@ -76,7 +65,7 @@ async def get_person_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_person)]
 
     except Exception as e:
-        return _format_error_response(e, "person details retrieval")
+        format_error_response(e, "person details retrieval")
 
 
 @with_client
@@ -100,7 +89,7 @@ async def get_family_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_family)]
 
     except Exception as e:
-        return _format_error_response(e, "family details retrieval")
+        format_error_response(e, "family details retrieval")
 
 
 async def get_type_tool(arguments) -> List[TextContent]:

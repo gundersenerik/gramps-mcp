@@ -67,7 +67,7 @@ async def delete_person_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "person delete")
+        format_error_response(e, "person delete")
 
 
 async def delete_family_tool(arguments) -> List[TextContent]:
@@ -96,7 +96,7 @@ async def delete_family_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "family delete")
+        format_error_response(e, "family delete")
 
 
 async def delete_event_tool(arguments) -> List[TextContent]:
@@ -125,7 +125,7 @@ async def delete_event_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "event delete")
+        format_error_response(e, "event delete")
 
 
 async def delete_note_tool(arguments) -> List[TextContent]:
@@ -154,7 +154,7 @@ async def delete_note_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "note delete")
+        format_error_response(e, "note delete")
 
 
 async def delete_citation_tool(arguments) -> List[TextContent]:
@@ -183,7 +183,7 @@ async def delete_citation_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "citation delete")
+        format_error_response(e, "citation delete")
 
 
 async def delete_source_tool(arguments) -> List[TextContent]:
@@ -212,7 +212,7 @@ async def delete_source_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "source delete")
+        format_error_response(e, "source delete")
 
 
 async def delete_place_tool(arguments) -> List[TextContent]:
@@ -241,7 +241,7 @@ async def delete_place_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "place delete")
+        format_error_response(e, "place delete")
 
 
 async def delete_repository_tool(arguments) -> List[TextContent]:
@@ -272,7 +272,7 @@ async def delete_repository_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "repository delete")
+        format_error_response(e, "repository delete")
 
 
 async def delete_media_tool(arguments) -> List[TextContent]:
@@ -301,4 +301,4 @@ async def delete_media_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "media delete")
+        format_error_response(e, "media delete")

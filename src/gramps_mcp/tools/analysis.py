@@ -139,7 +139,7 @@ async def get_descendants_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=markdown_content)]
 
     except Exception as e:
-        return format_error_response(e, "descendants search")
+        format_error_response(e, "descendants search")
 
 
 @with_client
@@ -232,7 +232,7 @@ async def get_ancestors_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=markdown_content)]
 
     except Exception as e:
-        return format_error_response(e, "ancestors search")
+        format_error_response(e, "ancestors search")
 
 
 @with_client
@@ -263,7 +263,7 @@ async def get_recent_changes_tool(client, arguments: Dict) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_changes)]
 
     except Exception as e:
-        return format_error_response(e, "recent changes retrieval")
+        format_error_response(e, "recent changes retrieval")
 
 
 def _format_tree_info(tree_info: Dict) -> str:
@@ -318,4 +318,4 @@ async def get_tree_info_tool(client, _arguments) -> List[TextContent]:
         return [TextContent(type="text", text=formatted_info)]
 
     except Exception as e:
-        return format_error_response(e, "tree information retrieval")
+        format_error_response(e, "tree information retrieval")

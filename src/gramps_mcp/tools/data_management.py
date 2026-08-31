@@ -109,7 +109,7 @@ async def create_family_tool(arguments) -> List[TextContent]:
             await client.close()
 
     except Exception as e:
-        return format_error_response(e, "family save")
+        format_error_response(e, "family save")
 
 
 async def create_event_tool(arguments: Dict) -> List[TextContent]:
@@ -254,7 +254,7 @@ async def create_media_tool(arguments) -> List[TextContent]:
             await client.close()
 
     except Exception as e:
-        return format_error_response(e, "media save")
+        format_error_response(e, "media save")
 
 
 async def create_repository_tool(arguments) -> List[TextContent]:
@@ -316,4 +316,4 @@ async def create_repository_tool(arguments) -> List[TextContent]:
             await client.close()
 
     except Exception as e:
-        return format_error_response(e, "repository save")
+        format_error_response(e, "repository save")

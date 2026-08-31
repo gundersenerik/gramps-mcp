@@ -78,7 +78,7 @@ async def find_tags_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "tags search")
+        format_error_response(e, "tags search")
 
 
 async def create_tag_tool(arguments) -> List[TextContent]:
@@ -129,7 +129,7 @@ async def create_tag_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "tag save")
+        format_error_response(e, "tag save")
 
 
 async def delete_tag_tool(arguments) -> List[TextContent]:
@@ -158,4 +158,4 @@ async def delete_tag_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "tag delete")
+        format_error_response(e, "tag delete")

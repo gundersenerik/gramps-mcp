@@ -116,7 +116,7 @@ async def _handle_crud_operation(
             await client.close()
 
     except Exception as e:
-        return format_error_response(e, f"{entity_type} save")
+        format_error_response(e, f"{entity_type} save")
 
 
 async def _format_save_response(

@@ -107,7 +107,7 @@ async def get_people_timeline_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=result)]
 
     except Exception as e:
-        return format_error_response(e, "people timeline retrieval")
+        format_error_response(e, "people timeline retrieval")
 
 
 @with_client
@@ -178,7 +178,7 @@ async def get_families_timeline_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=result)]
 
     except Exception as e:
-        return format_error_response(e, "families timeline retrieval")
+        format_error_response(e, "families timeline retrieval")
 
 
 # ============================================================================
@@ -238,7 +238,7 @@ async def get_event_span_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=response)]
 
     except Exception as e:
-        return format_error_response(e, "event span calculation")
+        format_error_response(e, "event span calculation")
 
 
 # ============================================================================
@@ -301,4 +301,4 @@ async def get_types_tool(client, arguments) -> List[TextContent]:
         return [TextContent(type="text", text=response)]
 
     except Exception as e:
-        return format_error_response(e, "types retrieval")
+        format_error_response(e, "types retrieval")

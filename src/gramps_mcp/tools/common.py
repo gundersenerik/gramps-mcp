@@ -19,21 +19,29 @@ Helpers shared across the MCP tool modules.
 """
 
 import logging
-from typing import List
-
-from mcp.types import TextContent
 
 from ..client import GrampsAPIError
 
 logger = logging.getLogger(__name__)
 
 
-def format_error_response(error: Exception, operation: str) -> List[TextContent]:
-    """Format error into user-friendly MCP response."""
+def format_error_response(error: Exception, operation: str) -> None:
+    """
+    Raise a GrampsAPIError so the MCP framework reports isError=true.
+
+    Args:
+        error (Exception): The exception a tool caught.
+        operation (str): Human-readable name of the failed operation.
+
+    Raises:
+        GrampsAPIError: Always. Returning an "Error: ..." message instead made
+            the MCP framework treat the failure as a successful response, so
+            callers could not tell a real result from a failure.
+    """
     if isinstance(error, GrampsAPIError):
         error_msg = str(error)
     else:
         error_msg = f"Unexpected error during {operation}: {str(error)}"
 
     logger.error(f"Tool error in {operation}: {error_msg}")
-    return [TextContent(type="text", text=f"Error: {error_msg}")]
+    raise GrampsAPIError(error_msg)

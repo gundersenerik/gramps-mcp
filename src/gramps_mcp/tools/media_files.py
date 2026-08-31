@@ -97,7 +97,7 @@ async def get_media_file_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "media file info")
+        format_error_response(e, "media file info")
 
 
 async def upload_media_file_tool(arguments) -> List[TextContent]:
@@ -175,7 +175,7 @@ async def upload_media_file_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "media file upload")
+        format_error_response(e, "media file upload")
 
 
 async def update_media_file_tool(arguments) -> List[TextContent]:
@@ -245,4 +245,4 @@ async def update_media_file_tool(arguments) -> List[TextContent]:
         finally:
             await client.close()
     except Exception as e:
-        return format_error_response(e, "media file update")
+        format_error_response(e, "media file update")
