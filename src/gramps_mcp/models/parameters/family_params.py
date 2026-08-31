@@ -52,7 +52,9 @@ class FamilySaveParams(BaseModel):
     mother_handle: Optional[str] = Field(None, description="Mother's handle")
     child_handles: Optional[List[str]] = Field(
         None,
-        description="List of child handles (convenience field, converted to child_ref_list)",
+        description=(
+            "List of child handles (convenience field, converted to child_ref_list)"
+        ),
     )
     child_ref_list: Optional[List[Dict[str, Any]]] = Field(
         None,
@@ -100,8 +102,7 @@ class FamilySaveParams(BaseModel):
         # but child_handles is more convenient for users to specify
         if self.child_handles is not None:
             child_refs = [
-                ChildReference(ref=handle).model_dump()
-                for handle in self.child_handles
+                ChildReference(ref=handle).model_dump() for handle in self.child_handles
             ]
             # Merge with any existing child_ref_list
             if self.child_ref_list is not None:

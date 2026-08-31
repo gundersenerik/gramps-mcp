@@ -81,7 +81,9 @@ async def format_person(client, tree_id: str, handle: str) -> str:
             for alt_name in alternate_names:
                 alt_given = alt_name.get("first_name", "")
                 alt_surname_list = alt_name.get("surname_list", [])
-                alt_surname = alt_surname_list[0].get("surname", "") if alt_surname_list else ""
+                alt_surname = (
+                    alt_surname_list[0].get("surname", "") if alt_surname_list else ""
+                )
                 alt_full = f"{alt_given} {alt_surname}".strip()
                 alt_type = alt_name.get("type", "")
                 if isinstance(alt_type, dict):

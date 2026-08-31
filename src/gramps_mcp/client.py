@@ -239,7 +239,8 @@ class GrampsWebAPIClient:
                 api_call.method in ["POST", "PUT"]
                 and api_call != ApiCalls.POST_REPORT_FILE
             ):
-                # For POST/PUT, include all non-None values (APIs expect complete objects)
+                # For POST/PUT, include all non-None values
+                # (APIs expect complete objects)
                 json_data = validated_params.model_dump(exclude_none=True)
             else:
                 # For GET, only include explicitly set values (not defaults)

@@ -22,7 +22,7 @@ person and family information using direct API calls.
 """
 
 import logging
-from typing import Dict, List
+from typing import List
 
 from mcp.types import TextContent
 

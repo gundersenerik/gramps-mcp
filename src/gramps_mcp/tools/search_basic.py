@@ -428,8 +428,7 @@ async def find_anything_tool(client, arguments) -> List[TextContent]:
             data = {}
 
         params = SearchParams(
-            query=data.get("query", ""),
-            pagesize=data.get("max_results", 20)
+            query=data.get("query", ""), pagesize=data.get("max_results", 20)
         )
 
         # Get tree_id from settings
