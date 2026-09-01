@@ -53,6 +53,7 @@ from scripts.probe_lib import (
     ledger_read,
     record,
 )
+from scripts.probe_sweep import sweep
 from src.gramps_mcp.client import GrampsWebAPIClient
 from src.gramps_mcp.config import get_settings
 from src.gramps_mcp.models.api_calls import ApiCalls
@@ -409,8 +410,22 @@ async def run(phase: str) -> int:
                 except Exception as error:
                     record(f"- ERROR in {experiment.__name__}: {error}")
                     status = 1
+        if phase == "sweep":
+            # Reason: a review step. Lists what carries the marker and
+            # removes nothing, so the set can be checked before deleting.
+            if await sweep(client, tree, delete=False) < 0:
+                status = 1
         if phase in ("cleanup", "all"):
             await cleanup(client, tree)
+            # Reason: the ledger only covers this run, because a workflow
+            # cannot read an earlier run's artifacts. The sweep is what makes
+            # cleanup work on its own, and it also catches records an earlier
+            # run failed to register.
+            remaining = await sweep(client, tree, delete=True)
+            if remaining:
+                # Negative means the tree could not be read at all, which is
+                # a failure to report, not a clean result.
+                status = 1
     finally:
         await client.close()
         Path("probe-report.md").write_text("\n".join(findings) + "\n")
@@ -428,7 +443,7 @@ def main() -> int:
     parser.add_argument(
         "--phase",
         default="all",
-        choices=["verify-delete", "probe", "cleanup", "all"],
+        choices=["verify-delete", "probe", "sweep", "cleanup", "all"],
         help="Which phase to run (default: all)",
     )
     args = parser.parse_args()
