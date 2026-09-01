@@ -8,7 +8,7 @@ Callers slice and measure those values, and slicing a mapping raises
 family that had a note attached.
 """
 
-from src.gramps_mcp.utils import styled_text_to_string
+from src.gramps_mcp.utils import format_attribute_lines, styled_text_to_string
 
 
 class TestStyledTextToString:
@@ -47,3 +47,44 @@ class TestStyledTextToString:
             assert "unhashable type" in str(error)
         else:
             raise AssertionError("slicing a mapping should raise TypeError")
+
+
+class TestFormatAttributeLines:
+    """Rendering the attribute list that no read path used to show."""
+
+    def test_attribute_is_rendered(self):
+        lines = format_attribute_lines(
+            [{"type": "Occupation", "value": "Husforhorslangd 1855"}]
+        )
+        assert lines == "- Occupation: Husforhorslangd 1855\n"
+
+    def test_styled_text_type_is_unwrapped(self):
+        lines = format_attribute_lines(
+            [
+                {
+                    "type": {"_class": "AttributeType", "string": "Occupation"},
+                    "value": "Bonde",
+                }
+            ]
+        )
+        assert lines == "- Occupation: Bonde\n"
+
+    def test_empty_list_says_none_rather_than_nothing(self):
+        # A failed write must not look like a record that never had one.
+        assert format_attribute_lines([]) == "- none\n"
+
+    def test_missing_list_says_none(self):
+        assert format_attribute_lines(None) == "- none\n"
+
+    def test_every_attribute_is_listed(self):
+        lines = format_attribute_lines(
+            [
+                {"type": "Occupation", "value": "Bonde"},
+                {"type": "Occupation", "value": "Bonde"},
+            ]
+        )
+        # Duplicates are shown as duplicates: the merge behaviour is visible.
+        assert lines.count("- Occupation: Bonde\n") == 2
+
+    def test_missing_value_renders_empty(self):
+        assert format_attribute_lines([{"type": "Occupation"}]) == "- Occupation: \n"

@@ -45,8 +45,10 @@ from scripts.probe_lib import (
     MARKER,
     _handle_of,
     create,
+    create_via_tool,
     fetch,
     findings,
+    handle_from_tool,
     ledger_add,
     ledger_read,
     record,
@@ -110,31 +112,42 @@ async def verify_delete(client: GrampsWebAPIClient, tree: str) -> bool:
 
 async def probe_attributes(client: GrampsWebAPIClient, tree: str) -> None:
     """
-    Point 2: does an attribute written through the tools survive?
+    Point 2: is an attribute stored, and can it be read back?
 
     Args:
         client (GrampsWebAPIClient): Live API client.
         tree (str): Tree identifier.
     """
     from src.gramps_mcp.tools import create_person_tool
+    from src.gramps_mcp.tools.search_details import get_type_tool
 
     record("\n## Point 2: attributes")
     params = person_params("Attribut")
     params.attribute_list = [{"type": "Occupation", "value": f"{MARKER}-A"}]
-    await create_person_tool(params)
-    entries = [e for e in ledger_read() if e["kind"] == "person"]
-    # The tool does not return a handle, so find the one it just made.
-    handle = entries[-1]["handle"] if entries else None
+    written = await create_person_tool(params)
+    handle = handle_from_tool(written)
     if handle is None:
-        record("- INCONCLUSIVE: no person handle recorded")
+        record("- INCONCLUSIVE: the tool reported no handle")
         return
+    ledger_add("person", handle)
+
     raw = await fetch(client, "person", handle, tree) or {}
     stored = raw.get("attribute_list") or []
     record(f"- stored on the record: {json.dumps(stored)}")
-    if stored:
-        record("- The attribute is stored. The gap is read-back, not writing.")
-    else:
-        record("- The attribute is NOT stored. Writing is broken too.")
+    if not stored:
+        record("- NOT stored. Writing is broken, not just reading.")
+        return
+    record("- stored: the write works")
+
+    body = getattr(written[0], "text", "") if written else ""
+    record(
+        f"- visible in the create response: {MARKER}-A in body is "
+        f"{f'{MARKER}-A' in body}"
+    )
+
+    seen = await get_type_tool({"type": "person", "handle": handle})
+    seen_text = getattr(seen[0], "text", "") if seen else ""
+    record(f"- visible through get_type: {f'{MARKER}-A' in seen_text}")
 
 
 async def probe_children(client: GrampsWebAPIClient, tree: str) -> None:
@@ -158,13 +171,13 @@ async def probe_children(client: GrampsWebAPIClient, tree: str) -> None:
     if not (kid_a and kid_b):
         record("- INCONCLUSIVE: could not create the two test children")
         return
-    await create_family_tool(FamilySaveParams(child_handles=[kid_a, kid_b]))
-    families = [e for e in ledger_read() if e["kind"] == "family"]
-    if not families:
-        # create_family_tool does not report the handle, so look it up.
-        record("- INCONCLUSIVE: family handle not captured; check the tree by hand")
+    family = await create_via_tool(
+        create_family_tool, FamilySaveParams(child_handles=[kid_a, kid_b]), "family"
+    )
+    if family is None:
+        record("- INCONCLUSIVE: the tool reported no family handle")
         return
-    raw = await fetch(client, "family", families[-1]["handle"], tree) or {}
+    raw = await fetch(client, "family", family, tree) or {}
     refs = raw.get("child_ref_list") or []
     got = {r.get("ref") for r in refs if isinstance(r, dict)}
     record(f"- child_ref_list on the saved family: {json.dumps(refs)}")
@@ -253,16 +266,17 @@ async def probe_event_lists(client: GrampsWebAPIClient, tree: str) -> None:
     if not cit:
         record("- INCONCLUSIVE: could not create the test citation")
         return
-    await create_event_tool(
+    event = await create_via_tool(
+        create_event_tool,
         EventSaveParams(
             type="Birth", description=f"{MARKER} event", citation_list=[cit]
-        )
+        ),
+        "event",
     )
-    events = [e for e in ledger_read() if e["kind"] == "event"]
-    if not events:
-        record("- INCONCLUSIVE: event handle not captured")
+    if event is None:
+        record("- INCONCLUSIVE: the tool reported no event handle")
         return
-    raw = await fetch(client, "event", events[-1]["handle"], tree) or {}
+    raw = await fetch(client, "event", event, tree) or {}
     cl = raw.get("citation_list")
     record(f"- citation_list as returned by GET: {json.dumps(cl)}")
     if cl and isinstance(cl[0], str):
