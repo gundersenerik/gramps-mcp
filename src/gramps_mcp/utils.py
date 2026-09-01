@@ -48,6 +48,27 @@ def styled_text_to_string(value: Any) -> Any:
     return value
 
 
+def format_attribute_lines(attributes: Any) -> str:
+    """
+    Render an attribute list as report lines.
+
+    Args:
+        attributes (Any): The record's ``attribute_list``, or None.
+
+    Returns:
+        str: One line per attribute, or a single "none" line when empty.
+    """
+    # Reason: "none" rather than an omitted section. An attribute that failed
+    # to save should look different from a record that never had one.
+    if not attributes:
+        return "- none\n"
+    lines = ""
+    for attribute in attributes:
+        attr_type = styled_text_to_string(attribute.get("type", ""))
+        lines += f"- {attr_type}: {attribute.get('value', '')}\n"
+    return lines
+
+
 def html_to_markdown(html: str) -> str:
     """
     Convert HTML content to Markdown format.

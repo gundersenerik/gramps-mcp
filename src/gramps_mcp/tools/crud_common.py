@@ -30,10 +30,10 @@ from ..client import GrampsWebAPIClient
 from ..config import get_settings
 from ..handlers.citation_handler import format_citation
 from ..handlers.event_handler import format_event
-from ..handlers.family_handler import format_family
+from ..handlers.family_detail_handler import format_family_detail
 from ..handlers.media_handler import format_media
 from ..handlers.note_handler import format_note
-from ..handlers.person_handler import format_person
+from ..handlers.person_detail_handler import format_person_detail
 from ..handlers.place_handler import format_place
 from ..handlers.repository_handler import format_repository
 from ..handlers.source_handler import format_source
@@ -131,11 +131,13 @@ async def _format_save_response(
     gramps_id = entity_data.get("gramps_id", "N/A")
 
     try:
-        # Use the appropriate format handler to get consistent formatting
+        # Reason: the full view, not the summary. A summary omits exactly the
+        # field a caller just changed, so a write that saved and a write that
+        # silently dropped its field produced the same response.
         if entity_type == "person":
-            formatted_details = await format_person(client, tree_id, handle)
+            formatted_details = await format_person_detail(client, tree_id, handle)
         elif entity_type == "family":
-            formatted_details = await format_family(client, tree_id, handle)
+            formatted_details = await format_family_detail(client, tree_id, handle)
         elif entity_type == "event":
             formatted_details = await format_event(client, tree_id, handle)
         elif entity_type == "place":
@@ -156,15 +158,22 @@ async def _format_save_response(
                 f"• **{entity_type.title()} {gramps_id}** (Handle: `{handle}`)\n\n"
             )
 
-        # Add success prefix to the formatted details
-        result = f"Successfully {operation} {entity_type}:\n\n{formatted_details}"
+        # Reason: a stable first line naming the handle, so a caller can act
+        # on what it just wrote without searching for it again.
+        result = (
+            f"Successfully {operation} {entity_type}: {gramps_id} "
+            f"(handle: `{handle}`)\n\n{formatted_details}"
+        )
         return result
 
     except Exception as e:
         logger.warning(f"Error formatting {entity_type} details: {e}")
         # Fallback to basic formatting if handler fails
-        display_name = f"{entity_type.title()} {gramps_id}"
-        result = f"Successfully {operation} {entity_type}: **{display_name}**\n\n"
-        result += f"**ID:** {gramps_id}\n"
-        result += f"**Handle:** `{handle}`\n"
+        # The handle still leads, so the response shape holds even when the
+        # read-back fails.
+        result = (
+            f"Successfully {operation} {entity_type}: {gramps_id} "
+            f"(handle: `{handle}`)\n\n"
+        )
+        result += f"Could not read the record back to confirm it: {e}\n"
         return result

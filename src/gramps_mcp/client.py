@@ -158,8 +158,25 @@ class GrampsWebAPIClient:
             raise GrampsAPIError(f"Unexpected error: {e}") from e
 
     def _format_http_error(self, error: httpx.HTTPStatusError) -> str:
-        """Convert HTTP error to user-friendly message."""
+        """
+        Convert an HTTP error to a message a caller can act on.
+
+        Args:
+            error (httpx.HTTPStatusError): The failed response.
+
+        Returns:
+            str: A message naming the cause, including what the API said when
+                it rejected the payload.
+        """
         status_code = error.response.status_code
+
+        # Reason: the API explains why it refused a write, and discarding that
+        # left "Invalid data provided" as the only clue. Kept for the statuses
+        # that mean the request itself was wrong; the rest are self-evident.
+        detail = (error.response.text or "").strip()
+        if len(detail) > 300:
+            detail = detail[:300] + "..."
+        because = f" API said: {detail}" if detail else ""
 
         if status_code == 401:
             return "Authentication failed. Please check your credentials."
@@ -168,11 +185,13 @@ class GrampsWebAPIClient:
         elif status_code == 404:
             return "Record not found."
         elif status_code == 422:
-            return "Invalid data provided."
+            return f"Invalid data provided.{because}"
+        elif status_code == 400:
+            return f"The API rejected the request.{because}"
         elif status_code >= 500:
             return "Server error. Please try again later."
         else:
-            return f"Request failed with status {status_code}"
+            return f"Request failed with status {status_code}.{because}"
 
     def _build_url_with_substitution(
         self, tree_id: str, endpoint: str, url_params: Dict

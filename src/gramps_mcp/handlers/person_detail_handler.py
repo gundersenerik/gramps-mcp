@@ -19,7 +19,7 @@ Person detail handler for Gramps MCP operations.
 """
 
 from ..models.api_calls import ApiCalls
-from ..utils import styled_text_to_string
+from ..utils import format_attribute_lines, styled_text_to_string
 from .date_handler import format_date
 from .place_handler import format_place
 
@@ -283,6 +283,15 @@ async def format_person_detail(client, tree_id: str, handle: str) -> str:
                     pass
 
     # Attached media section
+    # Attributes section
+    # Reason: attributes carry source information such as a household
+    # examination year. They were writable but appeared in no read path at
+    # all, so a write could not be checked. Always rendered, including when
+    # empty, so an attribute that failed to save is visible as an absence
+    # rather than looking the same as a record that never had one.
+    result += "\nATTRIBUTES:\n"
+    result += format_attribute_lines(person_data.get("attribute_list"))
+
     result += "\nAttached media:\n"
     media_list = person_data.get("media_list", [])
     for media_ref in media_list:

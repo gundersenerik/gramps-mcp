@@ -23,6 +23,7 @@ handles alone even if a probe aborts part way through.
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -89,6 +90,44 @@ def ledger_add(kind: str, handle: str) -> None:
     entries = ledger_read()
     entries.append({"kind": kind, "handle": handle})
     LEDGER.write_text(json.dumps(entries, indent=2))
+
+
+def handle_from_tool(result: Any) -> Optional[str]:
+    """
+    Pull the handle out of a create_* tool response.
+
+    Args:
+        result (Any): What the tool returned, a list of TextContent.
+
+    Returns:
+        Optional[str]: The handle, or None when the response has none.
+    """
+    # Reason: the tools return prose, not the record. Since the response now
+    # opens with the handle, the probe can register what a tool created and
+    # read it back, which is what the earlier run could not do.
+    if not result:
+        return None
+    text = getattr(result[0], "text", "") or ""
+    match = re.search(r"handle: `([^`]+)`", text)
+    return match.group(1) if match else None
+
+
+async def create_via_tool(tool: Any, params: Any, kind: str) -> Optional[str]:
+    """
+    Call a create tool and register whatever it created.
+
+    Args:
+        tool (Any): The create_* tool to call.
+        params (Any): Validated parameters for it.
+        kind (str): Ledger kind, so cleanup can remove it.
+
+    Returns:
+        Optional[str]: The new handle, or None when the tool reported none.
+    """
+    handle = handle_from_tool(await tool(params))
+    if handle:
+        ledger_add(kind, handle)
+    return handle
 
 
 async def create(
