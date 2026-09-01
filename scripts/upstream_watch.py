@@ -249,6 +249,23 @@ def find_issue(fork: str, token: str) -> Optional[Dict]:
     return None
 
 
+def write_job_summary(text: str) -> None:
+    """
+    Mirror the findings into the workflow run summary.
+
+    Args:
+        text (str): Markdown to append to the run summary.
+
+    Written whether or not the tracking issue could be reached, so a failure
+    to post never loses what was found.
+    """
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path or not text.strip():
+        return
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(text + "\n")
+
+
 def main() -> int:
     """
     Compare the fork against upstream and report anything new.
@@ -308,12 +325,30 @@ def main() -> int:
         return 0
 
     if issue is None:
-        issue = api_request(
-            f"/repos/{fork}/issues",
-            token,
-            "POST",
-            {"title": ISSUE_TITLE, "body": body, "labels": [ISSUE_LABEL]},
-        )
+        try:
+            issue = api_request(
+                f"/repos/{fork}/issues",
+                token,
+                "POST",
+                {"title": ISSUE_TITLE, "body": body, "labels": [ISSUE_LABEL]},
+            )
+        except ApiError as error:
+            # Reason: forks ship with the issue tracker off, and this watch
+            # reports through it. Say which switch to flip rather than
+            # printing a traceback every morning.
+            if "disabled" in str(error).lower():
+                notice = (
+                    "## Upstream watch could not report\n\n"
+                    "This repository has issues turned off, and the watch "
+                    "reports through one. Enable them under Settings, "
+                    "General, Features, Issues.\n\n"
+                    "Nothing was missed: the findings are below.\n\n"
+                    + "\n".join(comments)
+                )
+                print(notice)
+                write_job_summary(notice)
+                return 1
+            raise
     else:
         api_request(
             f"/repos/{fork}/issues/{issue['number']}", token, "PATCH", {"body": body}
@@ -326,6 +361,7 @@ def main() -> int:
             "POST",
             {"body": comment},
         )
+    write_job_summary("\n".join(comments))
     print(f"reported {len(comments)} update(s) on issue #{issue['number']}")
     return 0
 
